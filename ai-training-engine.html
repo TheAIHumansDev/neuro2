@@ -693,6 +693,20 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
               </select>
             </div>
           </div>
+          <div class="divider"></div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:10px">Pegar texto de conocimiento</div>
+            <div class="form-group">
+              <label class="form-label">Título / fuente</label>
+              <input class="form-input" id="kb-title" type="text" placeholder="Ej. Preguntas frecuentes, manual de producto...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Contenido</label>
+              <textarea class="form-textarea" id="kb-content" style="min-height:110px" placeholder="Pega aquí el texto real que el MetaHuman debe conocer..."></textarea>
+            </div>
+            <button class="btn-primary" style="width:100%" onclick="addKnowledgeChunk()">+ Indexar texto</button>
+            <div class="api-note">Este texto (y los archivos TXT/CSV que subas) se analizan de verdad: se usan como contexto real en el Playground, tanto en modo simulado como con API real. PDF/DOCX por ahora se registran como metadatos — usa TXT/CSV o pega el texto aquí para indexar contenido completo.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1063,14 +1077,15 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
         <div class="cards cards-4" style="gap:12px">
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label">Proveedor</label>
-            <select class="form-select" id="api-provider">
+            <select class="form-select" id="api-provider" onchange="populateModelOptions()">
               <option value="anthropic">Claude (Anthropic)</option>
               <option value="openai">OpenAI</option>
             </select>
           </div>
           <div class="form-group" style="margin-bottom:0">
             <label class="form-label">Modelo</label>
-            <input class="form-input" id="api-model" type="text" placeholder="ej. claude-sonnet-4-5 / gpt-4o">
+            <select class="form-select" id="api-model" onchange="toggleCustomModel()"></select>
+            <input class="form-input" id="api-model-custom" type="text" placeholder="ID de modelo personalizado" style="display:none;margin-top:8px">
           </div>
           <div class="form-group" style="margin-bottom:0;grid-column:span 2">
             <label class="form-label">API Key</label>
@@ -1098,7 +1113,7 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
           </div>
           <div class="playground-input-row">
             <input class="form-input" id="playground-query" type="text" placeholder="Ej: ¿Cuánto cuesta el plan Enterprise?" onkeydown="if(event.key==='Enter')queryCore()">
-            <button class="btn-primary" onclick="queryCore()">Consultar →</button>
+            <button class="btn-primary" id="playground-send-btn" onclick="queryCore()">Consultar →</button>
           </div>
           <div class="pill-row">
             <span class="pill-src" onclick="fillQuery('¿Cuál es el precio del plan Enterprise?')">precio</span>
@@ -1552,8 +1567,38 @@ function handleFileList(files) {
     state.files.push(item);
     state.docCount++;
     renderFiles(); updateStats();
-    setTimeout(() => { item.status = 'ready'; renderFiles(); notify('📄', 'Documento indexado', file.name); }, 1500 + Math.random() * 1000);
+
+    if (ext === 'txt' || ext === 'csv') {
+      const reader = new FileReader();
+      reader.onload = e => {
+        item.content = e.target.result;
+        item.status = 'ready';
+        renderFiles();
+        notify('📄','Documento indexado (contenido real)', file.name);
+      };
+      reader.onerror = () => { item.status = 'ready'; renderFiles(); notify('⚠','No se pudo leer el archivo', file.name); };
+      reader.readAsText(file);
+    } else {
+      setTimeout(() => {
+        item.status = 'ready';
+        renderFiles();
+        notify('📄','Documento registrado (metadatos)', file.name + ' — usa TXT/CSV o pega texto para indexar contenido real');
+      }, 1500 + Math.random() * 1000);
+    }
   });
+}
+
+function addKnowledgeChunk() {
+  const title = document.getElementById('kb-title').value.trim() || 'Texto sin título';
+  const content = document.getElementById('kb-content').value.trim();
+  if (!content) { notify('⚠','Contenido vacío','Pega el texto que quieres indexar'); return; }
+  const item = { name: title, size: (content.length/1024).toFixed(1)+' KB', ext:'txt', status:'ready', id: Date.now()+Math.random(), content };
+  state.files.push(item);
+  state.docCount++;
+  document.getElementById('kb-title').value = '';
+  document.getElementById('kb-content').value = '';
+  renderFiles(); updateStats();
+  notify('📝','Texto indexado', title);
 }
 
 function fmt(b) { return b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
@@ -1568,7 +1613,7 @@ function renderFiles() {
   el.innerHTML = state.files.map((f,i) => `
     <div class="file-item">
       <div class="file-icon ${f.ext}">${extI[f.ext]||'📄'}</div>
-      <div class="file-name">${f.name}</div>
+      <div class="file-name">${f.name}${f.content ? ' <span class="engine-tag">contenido indexado</span>' : ''}</div>
       <span class="file-size">${f.size}</span>
       <span class="file-status ${f.status}">${f.status==='processing'?'⟳ procesando':'✓ listo'}</span>
       <button class="file-remove" onclick="removeFile(${i})">✕</button>
@@ -1662,9 +1707,47 @@ function notify(icon, title, body) {
 
 const mhState = {
   sources: [], stageIdx: -1, training: false, vectors: 0, tokens: 0,
-  entities: [], dataset: [], realMode: false,
+  entities: [], dataset: [], realMode: false, querying: false,
   apiConfig: { provider: 'anthropic', model: '', key: '', connected: false }
 };
+
+const MODEL_OPTIONS = {
+  anthropic: [
+    { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 (recomendado)' },
+    { id: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
+    { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
+    { id: 'claude-fable-5', label: 'Claude Fable 5' }
+  ],
+  openai: [
+    { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol (frontier)' },
+    { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra (balanceado)' },
+    { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna (económico)' }
+  ]
+};
+
+function populateModelOptions() {
+  const providerSel = document.getElementById('api-provider');
+  const modelSel = document.getElementById('api-model');
+  if (!providerSel || !modelSel) return;
+  const opts = MODEL_OPTIONS[providerSel.value] || [];
+  modelSel.innerHTML = opts.map(o => `<option value="${o.id}">${o.label}</option>`).join('') + '<option value="__custom__">Personalizado (escribir ID)…</option>';
+  const customInput = document.getElementById('api-model-custom');
+  if (customInput) customInput.style.display = 'none';
+}
+
+function toggleCustomModel() {
+  const modelSel = document.getElementById('api-model');
+  const customInput = document.getElementById('api-model-custom');
+  if (!modelSel || !customInput) return;
+  customInput.style.display = modelSel.value === '__custom__' ? 'block' : 'none';
+}
+
+function getSelectedModel() {
+  const modelSel = document.getElementById('api-model');
+  if (!modelSel) return '';
+  if (modelSel.value === '__custom__') return (document.getElementById('api-model-custom').value || '').trim();
+  return modelSel.value;
+}
 
 const SOURCE_DEFS = [
   { id:'docs',  name:'Documentos indexados', type:'Archivos PDF/DOCX/TXT', icon:'📄', connected:true,  records: 128 },
@@ -1701,12 +1784,24 @@ function initMetaHuman() {
 }
 
 function restoreApiConfig() {
+  populateModelOptions();
   try {
     const raw = localStorage.getItem('neuroai_apiconfig');
     if (!raw) return;
     const cfg = JSON.parse(raw);
-    if (document.getElementById('api-provider')) document.getElementById('api-provider').value = cfg.provider || 'anthropic';
-    if (document.getElementById('api-model')) document.getElementById('api-model').value = cfg.model || '';
+    const providerSel = document.getElementById('api-provider');
+    if (providerSel && cfg.provider) providerSel.value = cfg.provider;
+    populateModelOptions();
+    const modelSel = document.getElementById('api-model');
+    if (modelSel && cfg.model) {
+      const exists = Array.from(modelSel.options).some(o => o.value === cfg.model);
+      if (exists) { modelSel.value = cfg.model; }
+      else {
+        modelSel.value = '__custom__';
+        const customInput = document.getElementById('api-model-custom');
+        if (customInput) { customInput.style.display = 'block'; customInput.value = cfg.model; }
+      }
+    }
     if (document.getElementById('api-key')) document.getElementById('api-key').value = cfg.key || '';
   } catch (e) { /* ignora clave corrupta o localStorage bloqueado */ }
 }
@@ -1886,7 +1981,7 @@ const INTENT_RULES = [
   { kw:['integra','conecta','api','webhook'], intent:'consulta_tecnica', tone:'técnico y preciso', emotion:'concentrado', gesture:'asentimiento', text:'La plataforma soporta integraciones vía REST API, webhooks en tiempo real, Google Sheets, CRMs como Salesforce y bases de datos SQL. Cada fuente conectada se fusiona automáticamente en el núcleo de entrenamiento.' },
   { kw:['problema','error','soporte','ayuda','falla'], intent:'soporte_tecnico', tone:'empático y resolutivo', emotion:'atento', gesture:'contacto visual sostenido', text:'Lamento el inconveniente. Voy a escalar tu caso al equipo humano de soporte y te doy seguimiento en los próximos minutos. ¿Podrías confirmarme el correo asociado a tu cuenta?' }
 ];
-const DEFAULT_RULE = { intent:'consulta_general', tone:'profesional y cercano', emotion:'neutro-positivo', gesture:'sonrisa leve', text:'Gracias por tu mensaje. Con base en el conocimiento indexado en el núcleo, puedo ayudarte a resolver tu consulta o conectarte con el equipo indicado.' };
+const DEFAULT_RULE = { intent:'consulta_general', tone:'profesional y cercano', emotion:'neutro-positivo', gesture:'sonrisa leve', text:'Aún no encuentro este tema específico en los documentos indexados. Puedo ayudarte con lo que sí está cargado en el núcleo, o puedes agregar más contenido en el módulo Documentos (sube TXT/CSV o pega texto directamente) para que responda con precisión.' };
 
 function fillQuery(q) { document.getElementById('playground-query').value = q; queryCore(); }
 
@@ -1907,24 +2002,31 @@ async function callProviderAPI(provider, model, key, messages, systemPrompt) {
     const data = await res.json();
     return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
   } else {
-    const oaMessages = systemPrompt ? [{ role: 'system', content: systemPrompt }, ...messages] : messages;
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    // OpenAI Responses API (endpoint vigente para modelos gpt-5.6-*)
+    const res = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-      body: JSON.stringify({ model, messages: oaMessages, max_tokens: 400 })
+      body: JSON.stringify({
+        model,
+        instructions: systemPrompt || undefined,
+        input: messages.map(m => ({ role: m.role, content: m.content })),
+        max_output_tokens: 400
+      })
     });
     if (!res.ok) { const t = await res.text(); throw new Error('OpenAI ' + res.status + ': ' + t.slice(0,140)); }
     const data = await res.json();
-    return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '').trim();
+    if (typeof data.output_text === 'string' && data.output_text) return data.output_text.trim();
+    const out = (data.output || []).flatMap(o => (o.content || [])).filter(c => c.type === 'output_text').map(c => c.text).join('\n');
+    return out.trim();
   }
 }
 
 async function testApiConnection() {
   const provider = document.getElementById('api-provider').value;
-  const model = document.getElementById('api-model').value.trim();
+  const model = getSelectedModel();
   const key = document.getElementById('api-key').value.trim();
   const chip = document.getElementById('api-status-chip');
-  if (!model || !key) { notify('⚠','Faltan datos','Ingresa el nombre del modelo y tu API key'); return; }
+  if (!model || !key) { notify('⚠','Faltan datos','Selecciona el modelo (o escribe uno personalizado) e ingresa tu API key'); return; }
 
   chip.textContent = '⟳ probando conexión...';
   chip.className = 'mh-chip pending';
@@ -1947,7 +2049,13 @@ function buildSystemPrompt() {
   const tono = (document.getElementById('cfg-tono') && document.getElementById('cfg-tono').value) || 'Profesional y directo';
   const sourceNames = mhState.sources.filter(s => s.connected).map(s => s.name).join(', ') || 'sin fuentes conectadas';
   const tagNames = state.tags.map(t => t.name).join(', ') || 'sin etiquetas definidas';
-  return `Eres el MetaHuman entrenado por Neuro AI. Tono de comunicación: ${tono}. Fuentes de conocimiento activas: ${sourceNames}. Categorías temáticas: ${tagNames}. Responde de forma breve, útil y coherente con estas fuentes; si no tienes información suficiente, dilo con honestidad en vez de inventar datos.`;
+  const chunks = state.files.filter(f => f.content);
+  let context = '';
+  if (chunks.length) {
+    context = '\n\nContexto documental indexado (úsalo como base de tus respuestas):\n' +
+      chunks.map(c => `— ${c.name}:\n${c.content.slice(0,1500)}`).join('\n\n').slice(0,6000);
+  }
+  return `Eres el MetaHuman entrenado por Neuro AI. Tono de comunicación: ${tono}. Fuentes de conocimiento activas: ${sourceNames}. Categorías temáticas: ${tagNames}.${context}\n\nResponde de forma breve, útil y coherente con el contexto documental cuando exista; si no tienes información suficiente, dilo con honestidad en vez de inventar datos.`;
 }
 
 function logEntities(entities, usedSources) {
@@ -1955,61 +2063,104 @@ function logEntities(entities, usedSources) {
   if (mhState.entities.length > 200) mhState.entities.splice(0, mhState.entities.length - 200);
 }
 
+function searchKnowledge(query) {
+  const chunks = state.files.filter(f => f.content && f.status === 'ready');
+  if (!chunks.length) return null;
+  const qWords = query.toLowerCase().split(/\s+/).map(w => w.replace(/[¿?¡!.,]/g,'')).filter(w => w.length > 3);
+  if (!qWords.length) return null;
+  let best = null, bestScore = 0;
+  chunks.forEach(chunk => {
+    const text = chunk.content.toLowerCase();
+    let score = 0;
+    qWords.forEach(w => { if (text.includes(w)) score++; });
+    if (score > bestScore) {
+      bestScore = score;
+      let idx = -1;
+      for (const w of qWords) { const found = text.indexOf(w); if (found >= 0) { idx = found; break; } }
+      if (idx < 0) idx = 0;
+      const start = Math.max(0, idx - 80);
+      const snippet = chunk.content.slice(start, start + 280).trim();
+      best = { snippet, title: chunk.name, score };
+    }
+  });
+  return bestScore > 0 ? best : null;
+}
+
 async function queryCore() {
+  if (mhState.querying) return;
   const input = document.getElementById('playground-query');
   const q = input.value.trim();
   if (!q) return;
-  addChatBubble(q, 'user');
-  input.value = '';
 
-  const rule = INTENT_RULES.find(r => r.kw.some(k => q.toLowerCase().includes(k))) || DEFAULT_RULE;
-  const activeSources = mhState.sources.filter(s => s.connected);
-  const usedSources = activeSources.length
-    ? activeSources.sort(()=>0.5-Math.random()).slice(0, Math.min(3, activeSources.length))
-        .map(s => ({ source: s.id, relevance: +(0.7 + Math.random()*0.29).toFixed(2) }))
-    : [{ source:'ninguna_fuente_conectada', relevance:0 }];
+  mhState.querying = true;
+  const sendBtn = document.getElementById('playground-send-btn');
+  input.disabled = true;
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '⟳ consultando...'; }
 
-  const words = q.split(/\s+/).filter(w => w.length > 3);
-  const entities = words.slice(0,2).map(w => ({ type: 'tema', value: w.replace(/[¿?¡!.,]/g,'') }));
-  logEntities(entities.length ? entities : [{ type:'general', value:'consulta' }], usedSources);
+  try {
+    addChatBubble(q, 'user');
+    input.value = '';
 
-  let answerText = rule.text;
-  let engineUsed = { provider: 'simulado', model: 'reglas-locales' };
+    const rule = INTENT_RULES.find(r => r.kw.some(k => q.toLowerCase().includes(k))) || DEFAULT_RULE;
+    const activeSources = mhState.sources.filter(s => s.connected);
+    const usedSources = activeSources.length
+      ? activeSources.sort(()=>0.5-Math.random()).slice(0, Math.min(3, activeSources.length))
+          .map(s => ({ source: s.id, relevance: +(0.7 + Math.random()*0.29).toFixed(2) }))
+      : [{ source:'ninguna_fuente_conectada', relevance:0 }];
 
-  if (mhState.realMode && mhState.apiConfig.connected) {
-    try {
-      const systemPrompt = buildSystemPrompt();
-      const real = await callProviderAPI(mhState.apiConfig.provider, mhState.apiConfig.model, mhState.apiConfig.key, [{ role: 'user', content: q }], systemPrompt);
-      if (real) { answerText = real; engineUsed = { provider: mhState.apiConfig.provider, model: mhState.apiConfig.model }; }
-    } catch (err) {
-      notify('⚠','Fallback a modo simulado', err.message.slice(0,80));
+    const words = q.split(/\s+/).filter(w => w.length > 3);
+    const entities = words.slice(0,2).map(w => ({ type: 'tema', value: w.replace(/[¿?¡!.,]/g,'') }));
+    logEntities(entities.length ? entities : [{ type:'general', value:'consulta' }], usedSources);
+
+    const kbHit = searchKnowledge(q);
+    let answerText = kbHit
+      ? `Según "${kbHit.title}": ${kbHit.snippet}${kbHit.snippet.length >= 280 ? '…' : ''}`
+      : rule.text;
+    let engineUsed = { provider: 'simulado', model: kbHit ? 'búsqueda-local-en-documentos' : 'reglas-locales' };
+
+    if (mhState.realMode && mhState.apiConfig.connected) {
+      try {
+        const systemPrompt = buildSystemPrompt();
+        const real = await callProviderAPI(mhState.apiConfig.provider, mhState.apiConfig.model, mhState.apiConfig.key, [{ role: 'user', content: q }], systemPrompt);
+        if (real) { answerText = real; engineUsed = { provider: mhState.apiConfig.provider, model: mhState.apiConfig.model }; }
+      } catch (err) {
+        notify('⚠','Fallback a modo simulado', err.message.slice(0,80));
+      }
     }
+
+    const responseObj = {
+      query: q,
+      intent: rule.intent,
+      confidence: +(0.81 + Math.random()*0.18).toFixed(2),
+      entities: entities.length ? entities : [{ type:'general', value:'consulta' }],
+      sources_used: usedSources,
+      knowledge_hit: kbHit ? { document: kbHit.title, match_score: kbHit.score } : null,
+      engine: engineUsed,
+      response: {
+        text: answerText,
+        tone: rule.tone,
+        avatar: { emotion: rule.emotion, gesture: rule.gesture, gaze: 'contacto visual con el usuario' }
+      },
+      suggested_followups: [
+        '¿Quieres que te muestre un caso de uso similar?',
+        '¿Deseas hablar con un asesor humano?'
+      ]
+    };
+
+    const jsonStr = JSON.stringify(responseObj, null, 2);
+    streamJSON(jsonStr);
+    setTimeout(() => addChatBubble(answerText, 'system'), 550);
+
+    mhState.dataset.push({ system: buildSystemPrompt(), user: q, assistant: answerText, tags: entities.map(e => e.value) });
+    updateDatasetStats();
+  } catch (err) {
+    notify('⚠','Error inesperado', (err && err.message ? err.message : 'Intenta de nuevo').slice(0,90));
+  } finally {
+    mhState.querying = false;
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Consultar →'; }
+    input.disabled = false;
+    input.focus();
   }
-
-  const responseObj = {
-    query: q,
-    intent: rule.intent,
-    confidence: +(0.81 + Math.random()*0.18).toFixed(2),
-    entities: entities.length ? entities : [{ type:'general', value:'consulta' }],
-    sources_used: usedSources,
-    engine: engineUsed,
-    response: {
-      text: answerText,
-      tone: rule.tone,
-      avatar: { emotion: rule.emotion, gesture: rule.gesture, gaze: 'contacto visual con el usuario' }
-    },
-    suggested_followups: [
-      '¿Quieres que te muestre un caso de uso similar?',
-      '¿Deseas hablar con un asesor humano?'
-    ]
-  };
-
-  const jsonStr = JSON.stringify(responseObj, null, 2);
-  streamJSON(jsonStr);
-  setTimeout(() => addChatBubble(answerText, 'system'), 550);
-
-  mhState.dataset.push({ system: buildSystemPrompt(), user: q, assistant: answerText, tags: entities.map(e => e.value) });
-  updateDatasetStats();
 }
 
 function addChatBubble(text, kind) {
