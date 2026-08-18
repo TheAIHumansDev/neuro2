@@ -2063,14 +2063,30 @@ function logEntities(entities, usedSources) {
   if (mhState.entities.length > 200) mhState.entities.splice(0, mhState.entities.length - 200);
 }
 
+const STOPWORDS = new Set(['que','qué','como','cómo','para','por','los','las','una','uno','este','esta','esto','ese','esa','sobre','tiene','tienes','tengo','cual','cuál','cuales','cuáles','donde','dónde','cuando','cuándo','porque','porqué','desde','hasta','entre','muy','mas','más','pero','todo','toda','todos','todas','puedo','puede','pueden','hacer','hace','sido','ser','están','esta','estas','estos','algo','algún','alguna','cada','otro','otra','nos','les','sus','sus','del','con','sin','the','and','you','your']);
+
+function normalizeText(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+const META_DOC_KEYWORDS = ['documento','documentos','archivo','archivos','que sabes','que tienes','que informacion tienes','de que trata','contenido indexado','fuentes tienes','que tienes cargado','resumen del documento','resume el documento','que hay en el nucleo','base de conocimiento'];
+
+function buildDocumentsSummary() {
+  const chunks = state.files.filter(f => f.content && f.status === 'ready');
+  if (!chunks.length) return null;
+  const list = chunks.map(c => `• "${c.name}": ${c.content.slice(0,160).trim()}${c.content.length > 160 ? '…' : ''}`).join('\n');
+  return `Tengo ${chunks.length} documento(s) indexado(s) con contenido real:\n${list}`;
+}
+
 function searchKnowledge(query) {
   const chunks = state.files.filter(f => f.content && f.status === 'ready');
   if (!chunks.length) return null;
-  const qWords = query.toLowerCase().split(/\s+/).map(w => w.replace(/[¿?¡!.,]/g,'')).filter(w => w.length > 3);
+  const nq = normalizeText(query);
+  const qWords = nq.split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOPWORDS.has(w));
   if (!qWords.length) return null;
   let best = null, bestScore = 0;
   chunks.forEach(chunk => {
-    const text = chunk.content.toLowerCase();
+    const text = normalizeText(chunk.content);
     let score = 0;
     qWords.forEach(w => { if (text.includes(w)) score++; });
     if (score > bestScore) {
@@ -2112,11 +2128,22 @@ async function queryCore() {
     const entities = words.slice(0,2).map(w => ({ type: 'tema', value: w.replace(/[¿?¡!.,]/g,'') }));
     logEntities(entities.length ? entities : [{ type:'general', value:'consulta' }], usedSources);
 
+    const isMetaDocQuery = META_DOC_KEYWORDS.some(k => normalizeText(q).includes(k));
     const kbHit = searchKnowledge(q);
-    let answerText = kbHit
-      ? `Según "${kbHit.title}": ${kbHit.snippet}${kbHit.snippet.length >= 280 ? '…' : ''}`
-      : rule.text;
-    let engineUsed = { provider: 'simulado', model: kbHit ? 'búsqueda-local-en-documentos' : 'reglas-locales' };
+    const docsSummary = isMetaDocQuery ? buildDocumentsSummary() : null;
+
+    let answerText;
+    let engineUsed;
+    if (docsSummary) {
+      answerText = docsSummary;
+      engineUsed = { provider: 'simulado', model: 'resumen-de-documentos' };
+    } else if (kbHit) {
+      answerText = `Según "${kbHit.title}": ${kbHit.snippet}${kbHit.snippet.length >= 280 ? '…' : ''}`;
+      engineUsed = { provider: 'simulado', model: 'búsqueda-local-en-documentos' };
+    } else {
+      answerText = rule.text;
+      engineUsed = { provider: 'simulado', model: 'reglas-locales' };
+    }
 
     if (mhState.realMode && mhState.apiConfig.connected) {
       try {
@@ -2134,7 +2161,7 @@ async function queryCore() {
       confidence: +(0.81 + Math.random()*0.18).toFixed(2),
       entities: entities.length ? entities : [{ type:'general', value:'consulta' }],
       sources_used: usedSources,
-      knowledge_hit: kbHit ? { document: kbHit.title, match_score: kbHit.score } : null,
+      knowledge_hit: docsSummary ? { type: 'resumen_documentos', documentos_indexados: state.files.filter(f => f.content).length } : (kbHit ? { type: 'coincidencia', document: kbHit.title, match_score: kbHit.score } : null),
       engine: engineUsed,
       response: {
         text: answerText,
