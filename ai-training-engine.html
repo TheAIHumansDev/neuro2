@@ -424,6 +424,7 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
 .mh-chip.ok { background: rgba(200,213,192,0.4); color: var(--sage-deep); }
 .mh-chip.err { background: rgba(232,196,188,0.45); color: var(--dusty-rose); }
 .mh-chip.pending { background: rgba(237,217,163,0.4); color: var(--champagne-deep); }
+.kb-warning { background: rgba(237,217,163,0.35); border: 1px solid rgba(201,168,76,0.35); color: var(--champagne-deep); font-size: 11px; line-height: 1.5; padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; }
 .api-note { font-size: 10px; color: var(--ink-faint); margin-top: 10px; line-height: 1.5; }
 .engine-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; padding: 2px 8px; border-radius: 20px; background: rgba(200,213,192,0.35); color: var(--sage-deep); font-weight: 500; margin-left: 6px; }
 .engine-tag.sim { background: rgba(44,38,32,0.06); color: var(--ink-muted); }
@@ -1108,6 +1109,7 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
       <div class="cards cards-2" style="align-items:start">
         <div class="card">
           <div class="card-header"><div class="card-title">Conversación de prueba</div><span class="mh-chip">◉ Núcleo conectado</span></div>
+          <div id="playground-kb-notice"></div>
           <div class="chat-log" id="chat-log">
             <div class="chat-empty">Escribe una pregunta como la haría un cliente y consulta al núcleo entrenado.</div>
           </div>
@@ -1551,6 +1553,7 @@ function navigate(panel, el) {
   if (el) el.classList.add('active');
   if (panel === 'mapa') renderKnowledgeMap();
   if (panel === 'exportar') updatePreview();
+  if (panel === 'playground') refreshPlaygroundNotice();
 }
 
 // FILE UPLOAD
@@ -1574,6 +1577,7 @@ function handleFileList(files) {
         item.content = e.target.result;
         item.status = 'ready';
         renderFiles();
+        refreshPlaygroundNotice();
         notify('📄','Documento indexado (contenido real)', file.name);
       };
       reader.onerror = () => { item.status = 'ready'; renderFiles(); notify('⚠','No se pudo leer el archivo', file.name); };
@@ -1628,6 +1632,7 @@ function updateStats() {
   document.getElementById('doc-count').textContent = state.docCount;
   document.getElementById('report-doc-count').textContent = state.docCount;
   updateMhCoverage();
+  refreshPlaygroundNotice();
 }
 
 function addUrl() {
@@ -1934,6 +1939,9 @@ function runStage(i, active) {
     document.getElementById('stat-accuracy').textContent = (92 + Math.random()*6).toFixed(1) + '%';
     document.getElementById('stat-fused').textContent = active.length;
     logLine('Entrenamiento completo. Núcleo MetaHuman actualizado y listo.', 'ok');
+    if (!state.files.some(f => f.content && f.status === 'ready')) {
+      logLine('Aviso: las fuentes fusionadas son simuladas (sin texto real todavía). Agrega contenido en Documentos para respuestas reales en el Playground.', 'warn');
+    }
     notify('◉','Núcleo entrenado','El MetaHuman ya conoce tus nuevas fuentes');
     return;
   }
@@ -1981,7 +1989,15 @@ const INTENT_RULES = [
   { kw:['integra','conecta','api','webhook'], intent:'consulta_tecnica', tone:'técnico y preciso', emotion:'concentrado', gesture:'asentimiento', text:'La plataforma soporta integraciones vía REST API, webhooks en tiempo real, Google Sheets, CRMs como Salesforce y bases de datos SQL. Cada fuente conectada se fusiona automáticamente en el núcleo de entrenamiento.' },
   { kw:['problema','error','soporte','ayuda','falla'], intent:'soporte_tecnico', tone:'empático y resolutivo', emotion:'atento', gesture:'contacto visual sostenido', text:'Lamento el inconveniente. Voy a escalar tu caso al equipo humano de soporte y te doy seguimiento en los próximos minutos. ¿Podrías confirmarme el correo asociado a tu cuenta?' }
 ];
-const DEFAULT_RULE = { intent:'consulta_general', tone:'profesional y cercano', emotion:'neutro-positivo', gesture:'sonrisa leve', text:'Aún no encuentro este tema específico en los documentos indexados. Puedo ayudarte con lo que sí está cargado en el núcleo, o puedes agregar más contenido en el módulo Documentos (sube TXT/CSV o pega texto directamente) para que responda con precisión.' };
+const DEFAULT_RULE = { intent:'consulta_general', tone:'profesional y cercano', emotion:'neutro-positivo', gesture:'sonrisa leve' };
+
+function getFallbackAnswer() {
+  const hasRealContent = state.files.some(f => f.content && f.status === 'ready');
+  if (!hasRealContent) {
+    return 'Todavía no hay contenido real indexado en el núcleo. Las fuentes de "Fuentes de Datos" (CRM, SQL, API...) son simuladas por ahora — no contienen texto real. Ve al módulo Documentos y usa "Pegar texto de conocimiento" o sube un archivo TXT/CSV para que pueda responder con información real de verdad.';
+  }
+  return 'Aún no encuentro este tema específico en los documentos indexados. Puedo ayudarte con lo que sí está cargado en el núcleo, o puedes agregar más contenido en el módulo Documentos (sube TXT/CSV o pega texto directamente) para que responda con precisión.';
+}
 
 function fillQuery(q) { document.getElementById('playground-query').value = q; queryCore(); }
 
@@ -2078,6 +2094,13 @@ function buildDocumentsSummary() {
   return `Tengo ${chunks.length} documento(s) indexado(s) con contenido real:\n${list}`;
 }
 
+function refreshPlaygroundNotice() {
+  const el = document.getElementById('playground-kb-notice');
+  if (!el) return;
+  const hasRealContent = state.files.some(f => f.content && f.status === 'ready');
+  el.innerHTML = hasRealContent ? '' : '<div class="kb-warning">⚠ No hay documentos con contenido real indexado todavía — las fuentes conectadas en "Fuentes de Datos" son simuladas. Ve al módulo Documentos y usa "Pegar texto de conocimiento" o sube un TXT/CSV para que el Playground pueda responder con información real.</div>';
+}
+
 function searchKnowledge(query) {
   const chunks = state.files.filter(f => f.content && f.status === 'ready');
   if (!chunks.length) return null;
@@ -2141,8 +2164,8 @@ async function queryCore() {
       answerText = `Según "${kbHit.title}": ${kbHit.snippet}${kbHit.snippet.length >= 280 ? '…' : ''}`;
       engineUsed = { provider: 'simulado', model: 'búsqueda-local-en-documentos' };
     } else {
-      answerText = rule.text;
-      engineUsed = { provider: 'simulado', model: 'reglas-locales' };
+      answerText = rule === DEFAULT_RULE ? getFallbackAnswer() : rule.text;
+      engineUsed = { provider: 'simulado', model: rule === DEFAULT_RULE ? 'sin-coincidencia' : 'reglas-locales' };
     }
 
     if (mhState.realMode && mhState.apiConfig.connected) {
