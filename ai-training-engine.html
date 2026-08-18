@@ -193,6 +193,7 @@ body::after {
 .form-input:focus, .form-select:focus, .form-textarea:focus {
   border-color: rgba(201,148,138,0.5); background: var(--white); box-shadow: 0 0 0 3px rgba(201,148,138,0.08);
 }
+.form-input:disabled { opacity: 0.55; cursor: not-allowed; background: var(--parchment); }
 .form-textarea { min-height: 90px; resize: vertical; line-height: 1.6; }
 .form-select option { background: var(--parchment); }
 input::placeholder, textarea::placeholder { color: var(--ink-faint); }
@@ -937,57 +938,50 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
       <div class="page-header">
         <div class="page-eyebrow">Módulo 09 · MetaHuman IA</div>
         <div class="page-title">Fuentes de <em class="mh">Conocimiento</em></div>
-        <div class="page-sub">Cada fuente conectada alimenta en vivo la memoria de tu MetaHuman</div>
+        <div class="page-sub">Conecta fuentes reales por URL — se leen con una petición real desde tu navegador, nada simulado</div>
       </div>
 
       <div class="cards cards-4" style="margin-bottom:20px">
         <div class="card card-lavender">
-          <div class="card-header"><div class="card-title">Fuentes activas</div><span class="card-icon">⬡</span></div>
+          <div class="card-header"><div class="card-title">Documentos indexados</div><span class="card-icon">📄</span></div>
           <div class="stat-val" id="mh-active-sources">0</div>
-          <div class="stat-label">de 8 conectadas</div>
+          <div class="stat-label">con contenido real</div>
         </div>
         <div class="card card-lavender">
-          <div class="card-header"><div class="card-title">Registros totales</div><span class="card-icon">◫</span></div>
+          <div class="card-header"><div class="card-title">Caracteres indexados</div><span class="card-icon">◫</span></div>
           <div class="stat-val" id="mh-total-records">0</div>
-          <div class="stat-label">fragmentos de conocimiento</div>
+          <div class="stat-label">de texto real analizable</div>
         </div>
         <div class="card card-lavender">
-          <div class="card-header"><div class="card-title">Frescura</div><span class="card-icon">◎</span></div>
-          <div class="stat-val" id="mh-freshness">—</div>
-          <div class="stat-label">última sincronización</div>
+          <div class="card-header"><div class="card-title">Fuentes en vivo</div><span class="card-icon">🔗</span></div>
+          <div class="stat-val" id="mh-freshness">0</div>
+          <div class="stat-label">conectadas por URL real</div>
         </div>
         <div class="card card-lavender">
           <div class="card-header"><div class="card-title">Cobertura</div><span class="card-icon">✦</span></div>
           <div class="stat-val" id="mh-coverage">0%</div>
-          <div class="stat-label">del perfil de marca</div>
+          <div class="stat-label">del núcleo con datos reales</div>
         </div>
       </div>
 
-      <div class="section-head"><span class="section-num mh">1</span> Conectores multi-fuente</div>
-      <div class="cards cards-4" id="source-grid" style="margin-bottom:24px"></div>
-
-      <div class="card">
-        <div class="card-header"><div class="card-title">Añadir fuente personalizada</div><span class="card-icon">⊕</span></div>
+      <div class="card" style="margin-bottom:24px">
+        <div class="card-header"><div class="card-title">Conectar fuente en vivo (URL real)</div><span class="card-icon">🔗</span></div>
         <div class="cards cards-3">
           <div class="form-group" style="margin-bottom:0">
-            <label class="form-label">Tipo de fuente</label>
-            <select class="form-select" id="custom-source-type">
-              <option>Base de datos SQL</option>
-              <option>API REST propia</option>
-              <option>Webhook en tiempo real</option>
-              <option>Google Sheets</option>
-              <option>Transcripciones de voz</option>
-            </select>
+            <label class="form-label">Nombre</label>
+            <input class="form-input" id="live-source-name" type="text" placeholder="Ej: FAQ pública, Sheet publicado como CSV...">
           </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label class="form-label">Nombre / endpoint</label>
-            <input class="form-input" id="custom-source-name" type="text" placeholder="Ej: api.miempresa.com/v1/kb">
-          </div>
-          <div style="display:flex;align-items:flex-end">
-            <button class="btn-primary" style="width:100%" onclick="addCustomSource()">+ Conectar fuente</button>
+          <div class="form-group" style="margin-bottom:0;grid-column:span 2">
+            <label class="form-label">URL (pública o con CORS habilitado)</label>
+            <input class="form-input" id="live-source-url" type="text" placeholder="https://.../datos.csv o https://api.tuservicio.com/kb">
           </div>
         </div>
+        <button class="btn-primary" style="margin-top:14px" onclick="connectLiveSource()">🔗 Conectar y sincronizar ahora</button>
+        <div class="api-note">Esto hace un <code>fetch()</code> real desde tu navegador a la URL indicada e indexa la respuesta como texto. Si la URL no permite CORS o no es pública, la conexión fallará — eso es esperado, no simulamos el resultado. Funciona bien con hojas de Google Sheets publicadas como CSV, endpoints públicos de API, o cualquier recurso accesible por HTTP.</div>
       </div>
+
+      <div class="section-head"><span class="section-num mh">1</span> Fuentes en vivo conectadas</div>
+      <div id="live-source-list"><div class="pattern-list-empty">Aún no has conectado ninguna fuente en vivo.</div></div>
     </div>
 
     <!-- ══ MÓDULO MH · NÚCLEO DE ENTRENAMIENTO ══ -->
@@ -995,7 +989,7 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
       <div class="page-header">
         <div class="page-eyebrow">Módulo 10 · MetaHuman IA</div>
         <div class="page-title">Núcleo de <em class="mh">Entrenamiento</em></div>
-        <div class="page-sub">Fusión en tiempo real de todas tus fuentes en la memoria del MetaHuman</div>
+        <div class="page-sub">Fusión de tus documentos reales y fuentes en vivo en la memoria del MetaHuman</div>
       </div>
 
       <div class="card" style="margin-bottom:20px">
@@ -1055,7 +1049,7 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
               <span class="terminal-title">training.log</span>
             </div>
             <div class="terminal-body" id="training-log">
-              <div class="terminal-line" style="animation-delay:0s"><span class="terminal-ts">[espera]</span><span>Presiona "Iniciar entrenamiento" para fusionar tus fuentes conectadas...</span></div>
+              <div class="terminal-line" style="animation-delay:0s"><span class="terminal-ts">[espera]</span><span>Presiona "Iniciar entrenamiento" para fusionar tus documentos y fuentes en vivo...</span></div>
             </div>
           </div>
         </div>
@@ -1106,35 +1100,32 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
         <div class="api-note">Tu clave se guarda solo en este navegador (localStorage) y se usa para llamar directo a la API del proveedor — nunca pasa por servidores de Neuro AI.</div>
       </div>
 
-      <div class="cards cards-2" style="align-items:start">
-        <div class="card">
-          <div class="card-header"><div class="card-title">Conversación de prueba</div><span class="mh-chip">◉ Núcleo conectado</span></div>
-          <div id="playground-kb-notice"></div>
-          <div class="chat-log" id="chat-log">
-            <div class="chat-empty">Escribe una pregunta como la haría un cliente y consulta al núcleo entrenado.</div>
-          </div>
-          <div class="playground-input-row">
-            <input class="form-input" id="playground-query" type="text" placeholder="Ej: ¿Cuánto cuesta el plan Enterprise?" onkeydown="if(event.key==='Enter')queryCore()">
-            <button class="btn-primary" id="playground-send-btn" onclick="queryCore()">Consultar →</button>
-          </div>
-          <div class="pill-row">
-            <span class="pill-src" onclick="fillQuery('¿Cuál es el precio del plan Enterprise?')">precio</span>
-            <span class="pill-src" onclick="fillQuery('¿Cómo agendo una demo del producto?')">agendar demo</span>
-            <span class="pill-src" onclick="fillQuery('¿Qué integraciones soporta la plataforma?')">integraciones</span>
-            <span class="pill-src" onclick="fillQuery('Tengo un problema con mi cuenta')">soporte</span>
-          </div>
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header"><div class="card-title">Conversación de prueba</div><span class="mh-chip">◉ RAG sobre tus documentos</span></div>
+        <div id="playground-kb-notice"></div>
+        <div class="chat-log" id="chat-log">
+          <div class="chat-empty">Escribe una pregunta sobre el contenido que indexaste en Documentos.</div>
         </div>
-        <div>
-          <div class="section-head"><span class="section-num mh">JSON</span> Respuesta estructurada</div>
-          <div class="code-block">
-            <div class="code-header">
-              <span class="code-lang mh">application/json · respuesta del núcleo</span>
-              <button class="code-copy" onclick="copyCode(this)">Copiar código</button>
-            </div>
-            <pre id="json-output">{
+        <div class="playground-input-row">
+          <input class="form-input" id="playground-query" type="text" placeholder="Pregunta algo sobre tus documentos indexados..." onkeydown="if(event.key==='Enter')queryCore()">
+          <button class="btn-primary" id="playground-send-btn" onclick="queryCore()">Consultar →</button>
+        </div>
+        <div class="pill-row">
+          <span class="pill-src" onclick="fillQuery('¿Qué documentos tienes indexados?')">qué documentos tienes</span>
+          <span class="pill-src" onclick="fillQuery('Resume el contenido indexado')">resumir contenido</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head"><span class="section-num mh">JSON</span> Respuesta estructurada</div>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang mh">application/json · respuesta del núcleo</span>
+            <button class="code-copy" onclick="copyCode(this)">Copiar código</button>
+          </div>
+          <pre id="json-output">{
   <span class="cm">// esperando consulta...</span>
 }</pre>
-          </div>
         </div>
       </div>
     </div>
@@ -1183,7 +1174,8 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
       query: userSpeech,
       session_id: sessionId,
       persona_id: <span class="str">"sofia-concierge-v2"</span>,
-      sources: [<span class="str">"documentos"</span>, <span class="str">"crm"</span>, <span class="str">"knowledge_graph"</span>, <span class="str">"chat_history"</span>],
+      mode: <span class="str">"rag_only"</span>,
+      <span class="cm">// el backend recupera únicamente fragmentos reales de tus documentos indexados</span>
       stream: <span class="kw">true</span>
     })
   });
@@ -1238,16 +1230,14 @@ pre { padding: 22px; overflow-x: auto; font-size: 11.5px; line-height: 1.75; col
         </div>
         <pre>{
   <span class="jk">"query"</span>: <span class="str">"string"</span>,
-  <span class="jk">"intent"</span>: <span class="str">"string"</span>,
-  <span class="jk">"confidence"</span>: <span class="num">0.0</span>-<span class="num">1.0</span>,
-  <span class="jk">"entities"</span>: [{ <span class="jk">"type"</span>: <span class="str">"string"</span>, <span class="jk">"value"</span>: <span class="str">"string"</span> }],
-  <span class="jk">"sources_used"</span>: [{ <span class="jk">"source"</span>: <span class="str">"string"</span>, <span class="jk">"relevance"</span>: <span class="num">0.0</span>-<span class="num">1.0</span> }],
+  <span class="jk">"grounded"</span>: <span class="kw">true</span> | <span class="kw">false</span>,
+  <span class="jk">"retrieval"</span>: [{ <span class="jk">"document"</span>: <span class="str">"string"</span>, <span class="jk">"chunk_id"</span>: <span class="str">"string"</span>, <span class="jk">"score"</span>: <span class="num">0.0</span>-<span class="num">1.0</span> }],
+  <span class="jk">"engine"</span>: { <span class="jk">"provider"</span>: <span class="str">"string"</span>, <span class="jk">"model"</span>: <span class="str">"string"</span> },
   <span class="jk">"response"</span>: {
     <span class="jk">"text"</span>: <span class="str">"string"</span>,
     <span class="jk">"tone"</span>: <span class="str">"string"</span>,
-    <span class="jk">"avatar"</span>: { <span class="jk">"emotion"</span>: <span class="str">"string"</span>, <span class="jk">"gesture"</span>: <span class="str">"string"</span>, <span class="jk">"gaze"</span>: <span class="str">"string"</span> }
-  },
-  <span class="jk">"suggested_followups"</span>: [<span class="str">"string"</span>]
+    <span class="jk">"avatar"</span>: { <span class="jk">"emotion"</span>: <span class="str">"string"</span>, <span class="jk">"gesture"</span>: <span class="str">"string"</span> }
+  }
 }</pre>
       </div>
     </div>
@@ -1711,7 +1701,7 @@ function notify(icon, title, body) {
    ══════════════════════════════════════════ */
 
 const mhState = {
-  sources: [], stageIdx: -1, training: false, vectors: 0, tokens: 0,
+  liveSources: [], stageIdx: -1, training: false, vectors: 0, tokens: 0,
   entities: [], dataset: [], realMode: false, querying: false,
   apiConfig: { provider: 'anthropic', model: '', key: '', connected: false }
 };
@@ -1754,38 +1744,30 @@ function getSelectedModel() {
   return modelSel.value;
 }
 
-const SOURCE_DEFS = [
-  { id:'docs',  name:'Documentos indexados', type:'Archivos PDF/DOCX/TXT', icon:'📄', connected:true,  records: 128 },
-  { id:'crm',   name:'CRM · Salesforce',     type:'API estructurada',      icon:'☁️', connected:true,  records: 542 },
-  { id:'sql',   name:'Base de datos SQL',    type:'Conexión directa',      icon:'🗄️', connected:false, records: 0   },
-  { id:'api',   name:'API REST propia',      type:'Webhook JSON',          icon:'🔌', connected:true,  records: 89  },
-  { id:'voice', name:'Transcripciones de voz', type:'Speech-to-text',      icon:'🎙️', connected:false, records: 0   },
-  { id:'chat',  name:'Historial de chats',   type:'Logs de conversación',  icon:'💬', connected:true,  records: 1204},
-  { id:'graph', name:'Knowledge Graph',      type:'Grafo Neo4j',           icon:'🕸️', connected:false, records: 0   },
-  { id:'sheets',name:'Google Sheets',        type:'Datos tabulares',       icon:'📊', connected:true,  records: 316 }
-];
+function getRealSources() {
+  const docs = state.files.filter(f => f.content && f.status === 'ready').map(f => ({
+    id: 'doc:' + f.id, name: f.name, icon: f.source === 'live' ? '🔗' : '📄', type: f.source === 'live' ? 'Fuente en vivo' : 'Documento', count: f.content.length
+  }));
+  return docs;
+}
 
 const TRAINING_STAGES = [
-  'Ingesta de fuentes conectadas',
-  'Vectorización (embeddings semánticos)',
+  'Ingesta de documentos y fuentes en vivo',
+  'Fragmentación en chunks (chunking)',
+  'Indexación por palabras clave (retrieval)',
   'Construcción del grafo de conocimiento',
-  'Fine-tuning de persona del MetaHuman',
-  'Validación y control de calidad'
+  'Validación de cobertura'
 ];
 
 function initMetaHuman() {
-  mhState.sources = SOURCE_DEFS.map(s => ({ ...s }));
-  mhState.dataset = INTENT_RULES.map(r => ({
-    system: 'Eres el MetaHuman entrenado por Neuro AI. Responde de forma breve, clara y coherente con tu base de conocimiento.',
-    user: `¿Qué me puedes decir sobre ${r.kw[0] || 'esto'}?`,
-    assistant: r.text,
-    tags: [r.intent]
-  }));
-  renderSources();
+  mhState.dataset = [];
+  mhState.liveSources = mhState.liveSources || [];
+  renderLiveSources();
   renderStages();
   updateMhSummary();
   updateDatasetStats();
   restoreApiConfig();
+  drawCore();
 }
 
 function restoreApiConfig() {
@@ -1811,69 +1793,111 @@ function restoreApiConfig() {
   } catch (e) { /* ignora clave corrupta o localStorage bloqueado */ }
 }
 
-function renderSources() {
-  const grid = document.getElementById('source-grid');
-  grid.innerHTML = mhState.sources.map((s, i) => `
-    <div class="source-card ${s.connected ? 'connected' : ''}">
+/* ── fuentes en vivo (fetch real, sin datos simulados) ── */
+async function connectLiveSource() {
+  const nameInput = document.getElementById('live-source-name');
+  const urlInput = document.getElementById('live-source-url');
+  const name = nameInput.value.trim() || 'Fuente sin nombre';
+  const url = urlInput.value.trim();
+  if (!url) { notify('⚠','Falta la URL','Ingresa una URL real y accesible (pública o con CORS habilitado)'); return; }
+
+  const entry = { id: 'src' + Date.now() + Math.floor(Math.random()*1000), name, url, status: 'loading', lastSync: null, contentLength: 0, error: null };
+  mhState.liveSources.push(entry);
+  renderLiveSources();
+  await syncLiveSource(entry.id);
+  nameInput.value = ''; urlInput.value = '';
+}
+
+async function syncLiveSource(id) {
+  const entry = mhState.liveSources.find(s => s.id === id);
+  if (!entry) return;
+  entry.status = 'loading'; entry.error = null;
+  renderLiveSources();
+  try {
+    const res = await fetch(entry.url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    if (!text.trim()) throw new Error('La respuesta está vacía');
+    entry.status = 'ok';
+    entry.lastSync = new Date().toLocaleTimeString('es-CR', { hour12:false });
+    entry.contentLength = text.length;
+
+    const docId = 'live-doc:' + entry.id;
+    state.files = state.files.filter(f => f.id !== docId);
+    state.files.push({ name: entry.name, size: (text.length/1024).toFixed(1)+' KB', ext:'txt', status:'ready', id: docId, content: text, source:'live' });
+    state.docCount = state.files.length;
+    renderFiles(); updateStats();
+    notify('✅','Fuente sincronizada', `${entry.name} — ${text.length.toLocaleString('es-CR')} caracteres reales indexados`);
+  } catch (err) {
+    entry.status = 'error';
+    entry.error = err.message || 'Error de red';
+    notify('⚠','No se pudo conectar', (err.message || 'Error de red') + ' — revisa CORS o la URL');
+  }
+  renderLiveSources();
+  updateMhSummary();
+  drawCore();
+}
+
+function removeLiveSource(id) {
+  mhState.liveSources = mhState.liveSources.filter(s => s.id !== id);
+  state.files = state.files.filter(f => f.id !== 'live-doc:' + id);
+  state.docCount = state.files.length;
+  renderFiles(); updateStats();
+  renderLiveSources();
+  updateMhSummary();
+  drawCore();
+}
+
+function renderLiveSources() {
+  const el = document.getElementById('live-source-list');
+  if (!el) return;
+  if (!mhState.liveSources.length) {
+    el.innerHTML = '<div class="pattern-list-empty">Aún no has conectado ninguna fuente en vivo.</div>';
+    return;
+  }
+  el.innerHTML = mhState.liveSources.map(s => `
+    <div class="source-card ${s.status === 'ok' ? 'connected' : ''}" style="margin-bottom:10px">
       <div class="source-top">
-        <div class="source-icon">${s.icon}</div>
-        <div>
+        <div class="source-icon">${s.status === 'loading' ? '⟳' : (s.status === 'ok' ? '🔗' : '⚠')}</div>
+        <div style="flex:1;min-width:0">
           <div class="source-name">${s.name}</div>
-          <div class="source-type">${s.type}</div>
+          <div class="source-type" style="word-break:break-all">${s.url}</div>
         </div>
       </div>
-      <div class="source-stats">
-        <div>
-          <div class="source-count">${s.records}</div>
-          <div class="source-count-lbl">registros</div>
+      <div class="source-foot" style="margin-top:10px">
+        <span class="source-status-txt ${s.status === 'ok' ? 'on' : 'off'}">${
+          s.status === 'loading' ? '⟳ sincronizando...' :
+          s.status === 'ok' ? '● ' + s.contentLength.toLocaleString('es-CR') + ' caracteres · ' + s.lastSync :
+          '⚠ ' + (s.error || 'error de conexión')
+        }</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn-ghost" style="padding:5px 12px;font-size:11px" onclick="syncLiveSource('${s.id}')">↻ Resincronizar</button>
+          <button class="file-remove" onclick="removeLiveSource('${s.id}')">✕</button>
         </div>
-        <div class="toggle ${s.connected ? 'on lav' : ''}" onclick="toggleSource(${i})"></div>
-      </div>
-      <div class="source-sync-bar"><div class="source-sync-fill" style="width:${s.connected ? (60 + (s.records % 40)) : 0}%"></div></div>
-      <div class="source-foot">
-        <span class="source-status-txt ${s.connected ? 'on' : 'off'}">${s.connected ? '● sincronizado' : '○ desconectado'}</span>
-        <span class="source-status-txt off">${s.connected ? 'hace ' + (1 + i % 5) + 'm' : '—'}</span>
       </div>
     </div>
   `).join('');
-  drawCore();
-  updateMhSummary();
-}
-
-function toggleSource(i) {
-  const s = mhState.sources[i];
-  s.connected = !s.connected;
-  if (s.connected && s.records === 0) s.records = 40 + Math.floor(Math.random()*300);
-  renderSources();
-  notify(s.connected ? '⬡' : '○', s.connected ? 'Fuente conectada' : 'Fuente desconectada', s.name);
-}
-
-function addCustomSource() {
-  const type = document.getElementById('custom-source-type').value;
-  const name = document.getElementById('custom-source-name').value.trim() || type;
-  mhState.sources.push({ id:'custom'+Date.now(), name, type, icon:'⊕', connected:true, records: 20 + Math.floor(Math.random()*120) });
-  document.getElementById('custom-source-name').value='';
-  renderSources();
-  notify('⊕','Fuente personalizada agregada',name);
 }
 
 function updateMhSummary() {
-  const active = mhState.sources.filter(s => s.connected);
-  document.getElementById('mh-active-sources').textContent = active.length;
-  document.getElementById('mh-source-count').textContent = active.length;
-  document.getElementById('mh-total-records').textContent = active.reduce((a,s)=>a+s.records,0).toLocaleString('es-CR');
-  document.getElementById('mh-freshness').textContent = active.length ? 'hace 2m' : '—';
+  const sources = getRealSources();
+  const totalChars = sources.reduce((a,s) => a + s.count, 0);
+  document.getElementById('mh-active-sources').textContent = sources.length;
+  document.getElementById('mh-source-count').textContent = sources.length;
+  document.getElementById('mh-total-records').textContent = totalChars.toLocaleString('es-CR');
+  document.getElementById('mh-freshness').textContent = mhState.liveSources.filter(s => s.status === 'ok').length;
   updateMhCoverage();
 }
 
 function updateMhCoverage() {
-  const activeSrc = mhState.sources.filter(s => s.connected).length;
-  const pct = Math.min(100, Math.round((activeSrc / SOURCE_DEFS.length) * 70 + (state.docCount > 0 ? 15 : 0) + (state.tags.length > 0 ? 15 : 0)));
+  const hasContent = state.files.some(f => f.content && f.status === 'ready');
+  const liveOk = mhState.liveSources.filter(s => s.status === 'ok').length;
+  const pct = Math.min(100, (hasContent ? 55 : 0) + Math.min(liveOk * 15, 30) + (state.tags.length > 0 ? 15 : 0));
   const el = document.getElementById('mh-coverage');
   if (el) el.textContent = pct + '%';
 }
 
-/* ── neural core svg ── */
+/* ── neural core svg (basado en fuentes reales) ── */
 const CORE_CENTER = { x: 300, y: 190 };
 const CORE_RADIUS = 150;
 
@@ -1881,15 +1905,17 @@ function drawCore() {
   const linesG = document.getElementById('core-lines');
   const nodesG = document.getElementById('core-nodes');
   if (!linesG || !nodesG) return;
-  const n = mhState.sources.length;
+  const sources = getRealSources();
+  if (!sources.length) { linesG.innerHTML = ''; nodesG.innerHTML = ''; return; }
+  const n = sources.length;
   let linesHTML = '', nodesHTML = '';
-  mhState.sources.forEach((s, i) => {
+  sources.forEach((s, i) => {
     const angle = (-90 + (360 / n) * i) * Math.PI / 180;
     const x = CORE_CENTER.x + CORE_RADIUS * Math.cos(angle);
     const y = CORE_CENTER.y + CORE_RADIUS * Math.sin(angle);
-    linesHTML += `<line class="core-line ${s.connected ? 'active' : ''}" x1="${CORE_CENTER.x}" y1="${CORE_CENTER.y}" x2="${x}" y2="${y}"></line>`;
+    linesHTML += `<line class="core-line active" x1="${CORE_CENTER.x}" y1="${CORE_CENTER.y}" x2="${x}" y2="${y}"></line>`;
     nodesHTML += `
-      <g class="core-node ${s.connected ? 'active' : ''}" transform="translate(${x},${y})">
+      <g class="core-node active" transform="translate(${x},${y})">
         <circle class="core-node-circle" r="22"></circle>
         <text class="core-node-icon" text-anchor="middle" y="6">${s.icon}</text>
         <text class="core-node-label" text-anchor="middle" y="${y < CORE_CENTER.y ? -30 : 38}">${s.name.length > 16 ? s.name.slice(0,14)+'…' : s.name}</text>
@@ -1916,8 +1942,8 @@ function renderStages() {
 
 function startTraining() {
   if (mhState.training) return;
-  const active = mhState.sources.filter(s => s.connected);
-  if (!active.length) { notify('⚠','Sin fuentes activas','Conecta al menos una fuente de datos antes de entrenar'); return; }
+  const active = getRealSources();
+  if (!active.length) { notify('⚠','Sin fuentes con datos reales','Agrega texto en Documentos o conecta una fuente en vivo antes de entrenar'); return; }
 
   mhState.training = true;
   mhState.vectors = 0; mhState.tokens = 0;
@@ -1925,7 +1951,7 @@ function startTraining() {
   btn.disabled = true; btn.textContent = '⟳ Entrenando...';
   document.getElementById('training-log').innerHTML = '';
   document.getElementById('stat-fused').textContent = '0';
-  logLine(`Iniciando fusión de ${active.length} fuente(s) conectada(s)...`, 'ok');
+  logLine(`Iniciando fusión de ${active.length} fuente(s) real(es)...`, 'ok');
 
   renderStages();
   runStage(0, active);
@@ -1938,11 +1964,8 @@ function runStage(i, active) {
     btn.disabled = false; btn.textContent = '▶ Iniciar entrenamiento';
     document.getElementById('stat-accuracy').textContent = (92 + Math.random()*6).toFixed(1) + '%';
     document.getElementById('stat-fused').textContent = active.length;
-    logLine('Entrenamiento completo. Núcleo MetaHuman actualizado y listo.', 'ok');
-    if (!state.files.some(f => f.content && f.status === 'ready')) {
-      logLine('Aviso: las fuentes fusionadas son simuladas (sin texto real todavía). Agrega contenido en Documentos para respuestas reales en el Playground.', 'warn');
-    }
-    notify('◉','Núcleo entrenado','El MetaHuman ya conoce tus nuevas fuentes');
+    logLine('Entrenamiento completo. Núcleo MetaHuman actualizado y listo (basado en tus fuentes reales).', 'ok');
+    notify('◉','Núcleo entrenado','El MetaHuman ya conoce tus documentos y fuentes en vivo');
     return;
   }
   const idxEl = document.getElementById('stage-idx-'+i);
@@ -1983,20 +2006,12 @@ function logLine(text, kind) {
 }
 
 /* ── JSON playground ── */
-const INTENT_RULES = [
-  { kw:['precio','costo','cuánto cuesta','plan'], intent:'consulta_pricing', tone:'informativo y transparente', emotion:'amigable', gesture:'gesto de mano abierta', text:'Nuestro plan Enterprise incluye entrenamiento ilimitado de fuentes, soporte prioritario y un MetaHuman dedicado. El precio se ajusta según volumen de conversaciones mensuales — con gusto te preparo una cotización personalizada.' },
-  { kw:['demo','agendar','cita','reunión'], intent:'agendar_demo', tone:'proactivo', emotion:'entusiasta', gesture:'inclinación hacia adelante', text:'Puedo agendarte una demo en vivo del MetaHuman entrenado con tu propia base de conocimiento. ¿Qué día de esta semana te viene mejor?' },
-  { kw:['integra','conecta','api','webhook'], intent:'consulta_tecnica', tone:'técnico y preciso', emotion:'concentrado', gesture:'asentimiento', text:'La plataforma soporta integraciones vía REST API, webhooks en tiempo real, Google Sheets, CRMs como Salesforce y bases de datos SQL. Cada fuente conectada se fusiona automáticamente en el núcleo de entrenamiento.' },
-  { kw:['problema','error','soporte','ayuda','falla'], intent:'soporte_tecnico', tone:'empático y resolutivo', emotion:'atento', gesture:'contacto visual sostenido', text:'Lamento el inconveniente. Voy a escalar tu caso al equipo humano de soporte y te doy seguimiento en los próximos minutos. ¿Podrías confirmarme el correo asociado a tu cuenta?' }
-];
-const DEFAULT_RULE = { intent:'consulta_general', tone:'profesional y cercano', emotion:'neutro-positivo', gesture:'sonrisa leve' };
-
 function getFallbackAnswer() {
   const hasRealContent = state.files.some(f => f.content && f.status === 'ready');
   if (!hasRealContent) {
-    return 'Todavía no hay contenido real indexado en el núcleo. Las fuentes de "Fuentes de Datos" (CRM, SQL, API...) son simuladas por ahora — no contienen texto real. Ve al módulo Documentos y usa "Pegar texto de conocimiento" o sube un archivo TXT/CSV para que pueda responder con información real de verdad.';
+    return 'Todavía no hay contenido real indexado en el núcleo. Ve al módulo Documentos y usa "Pegar texto de conocimiento" o sube un archivo TXT/CSV — o conecta una fuente real en "Fuentes de Datos" — para que pueda responder con información real.';
   }
-  return 'Aún no encuentro este tema específico en los documentos indexados. Puedo ayudarte con lo que sí está cargado en el núcleo, o puedes agregar más contenido en el módulo Documentos (sube TXT/CSV o pega texto directamente) para que responda con precisión.';
+  return 'No encontré nada relevante para esta pregunta en los documentos indexados. Puedes reformular la pregunta o agregar más contenido en Documentos para ampliar lo que el núcleo conoce.';
 }
 
 function fillQuery(q) { document.getElementById('playground-query').value = q; queryCore(); }
@@ -2012,7 +2027,7 @@ async function callProviderAPI(provider, model, key, messages, systemPrompt) {
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
-      body: JSON.stringify({ model, max_tokens: 400, system: systemPrompt || undefined, messages })
+      body: JSON.stringify({ model, max_tokens: 500, system: systemPrompt || undefined, messages })
     });
     if (!res.ok) { const t = await res.text(); throw new Error('Anthropic ' + res.status + ': ' + t.slice(0,140)); }
     const data = await res.json();
@@ -2026,7 +2041,7 @@ async function callProviderAPI(provider, model, key, messages, systemPrompt) {
         model,
         instructions: systemPrompt || undefined,
         input: messages.map(m => ({ role: m.role, content: m.content })),
-        max_output_tokens: 400
+        max_output_tokens: 500
       })
     });
     if (!res.ok) { const t = await res.text(); throw new Error('OpenAI ' + res.status + ': ' + t.slice(0,140)); }
@@ -2061,25 +2076,7 @@ async function testApiConnection() {
   }
 }
 
-function buildSystemPrompt() {
-  const tono = (document.getElementById('cfg-tono') && document.getElementById('cfg-tono').value) || 'Profesional y directo';
-  const sourceNames = mhState.sources.filter(s => s.connected).map(s => s.name).join(', ') || 'sin fuentes conectadas';
-  const tagNames = state.tags.map(t => t.name).join(', ') || 'sin etiquetas definidas';
-  const chunks = state.files.filter(f => f.content);
-  let context = '';
-  if (chunks.length) {
-    context = '\n\nContexto documental indexado (úsalo como base de tus respuestas):\n' +
-      chunks.map(c => `— ${c.name}:\n${c.content.slice(0,1500)}`).join('\n\n').slice(0,6000);
-  }
-  return `Eres el MetaHuman entrenado por Neuro AI. Tono de comunicación: ${tono}. Fuentes de conocimiento activas: ${sourceNames}. Categorías temáticas: ${tagNames}.${context}\n\nResponde de forma breve, útil y coherente con el contexto documental cuando exista; si no tienes información suficiente, dilo con honestidad en vez de inventar datos.`;
-}
-
-function logEntities(entities, usedSources) {
-  entities.forEach(e => mhState.entities.push({ value: e.value, sources: usedSources.map(s => s.source), ts: Date.now() }));
-  if (mhState.entities.length > 200) mhState.entities.splice(0, mhState.entities.length - 200);
-}
-
-const STOPWORDS = new Set(['que','qué','como','cómo','para','por','los','las','una','uno','este','esta','esto','ese','esa','sobre','tiene','tienes','tengo','cual','cuál','cuales','cuáles','donde','dónde','cuando','cuándo','porque','porqué','desde','hasta','entre','muy','mas','más','pero','todo','toda','todos','todas','puedo','puede','pueden','hacer','hace','sido','ser','están','esta','estas','estos','algo','algún','alguna','cada','otro','otra','nos','les','sus','sus','del','con','sin','the','and','you','your']);
+const STOPWORDS = new Set(['que','qué','como','cómo','para','por','los','las','una','uno','este','esta','esto','ese','esa','sobre','tiene','tienes','tengo','cual','cuál','cuales','cuáles','donde','dónde','cuando','cuándo','porque','porqué','desde','hasta','entre','muy','mas','más','pero','todo','toda','todos','todas','puedo','puede','pueden','hacer','hace','sido','ser','están','esta','estas','estos','algo','algún','alguna','cada','otro','otra','nos','les','sus','del','con','sin','the','and','you','your']);
 
 function normalizeText(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -2098,31 +2095,52 @@ function refreshPlaygroundNotice() {
   const el = document.getElementById('playground-kb-notice');
   if (!el) return;
   const hasRealContent = state.files.some(f => f.content && f.status === 'ready');
-  el.innerHTML = hasRealContent ? '' : '<div class="kb-warning">⚠ No hay documentos con contenido real indexado todavía — las fuentes conectadas en "Fuentes de Datos" son simuladas. Ve al módulo Documentos y usa "Pegar texto de conocimiento" o sube un TXT/CSV para que el Playground pueda responder con información real.</div>';
+  el.innerHTML = hasRealContent ? '' : '<div class="kb-warning">⚠ No hay documentos con contenido real indexado todavía. Ve al módulo Documentos y usa "Pegar texto de conocimiento", sube un TXT/CSV, o conecta una fuente real en "Fuentes de Datos".</div>';
 }
 
-function searchKnowledge(query) {
-  const chunks = state.files.filter(f => f.content && f.status === 'ready');
-  if (!chunks.length) return null;
-  const nq = normalizeText(query);
-  const qWords = nq.split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOPWORDS.has(w));
-  if (!qWords.length) return null;
-  let best = null, bestScore = 0;
-  chunks.forEach(chunk => {
-    const text = normalizeText(chunk.content);
-    let score = 0;
-    qWords.forEach(w => { if (text.includes(w)) score++; });
-    if (score > bestScore) {
-      bestScore = score;
-      let idx = -1;
-      for (const w of qWords) { const found = text.indexOf(w); if (found >= 0) { idx = found; break; } }
-      if (idx < 0) idx = 0;
-      const start = Math.max(0, idx - 80);
-      const snippet = chunk.content.slice(start, start + 280).trim();
-      best = { snippet, title: chunk.name, score };
-    }
+/* ── recuperación tipo RAG sobre los documentos reales ── */
+function chunkText(text, size) {
+  const out = [];
+  for (let i = 0; i < text.length; i += size) out.push(text.slice(i, i + size));
+  return out;
+}
+
+function getDocumentChunks() {
+  const chunks = [];
+  state.files.filter(f => f.content && f.status === 'ready').forEach(f => {
+    const paras = f.content.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 0);
+    const pieces = paras.length > 1 ? paras : chunkText(f.content, 500);
+    pieces.forEach((p, i) => {
+      if (p.length < 20) return;
+      chunks.push({ title: f.name, text: p.slice(0, 900), chunk_id: f.id + '#' + i });
+    });
   });
-  return bestScore > 0 ? best : null;
+  return chunks;
+}
+
+function retrieveTopChunks(query, k) {
+  const chunks = getDocumentChunks();
+  if (!chunks.length) return [];
+  const qWords = normalizeText(query).split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOPWORDS.has(w));
+  if (!qWords.length) return [];
+  const scored = chunks.map(c => {
+    const t = normalizeText(c.text);
+    let score = 0;
+    qWords.forEach(w => { if (t.includes(w)) score++; });
+    return { title: c.title, text: c.text, chunk_id: c.chunk_id, score: score / qWords.length };
+  }).filter(c => c.score > 0).sort((a,b) => b.score - a.score);
+  return scored.slice(0, k);
+}
+
+function buildRagSystemPrompt(retrieval, tono) {
+  const context = retrieval.map(r => `[Fuente: ${r.title}]\n${r.text}`).join('\n\n---\n\n');
+  return `Eres un asistente que responde ÚNICAMENTE con base en el siguiente contexto documental proporcionado. No uses conocimiento externo ni inventes información que no esté explícita en el contexto. Si la respuesta no está en el contexto, dilo claramente en vez de adivinar. Tono de comunicación: ${tono}.\n\nContexto documental:\n${context}`;
+}
+
+function logEntities(query) {
+  const words = normalizeText(query).split(/[^a-z0-9]+/).filter(w => w.length > 3 && !STOPWORDS.has(w));
+  words.slice(0,3).forEach(w => mhState.entities.push({ value: w, ts: Date.now() }));
+  if (mhState.entities.length > 200) mhState.entities.splice(0, mhState.entities.length - 200);
 }
 
 async function queryCore() {
@@ -2140,68 +2158,55 @@ async function queryCore() {
     addChatBubble(q, 'user');
     input.value = '';
 
-    const rule = INTENT_RULES.find(r => r.kw.some(k => q.toLowerCase().includes(k))) || DEFAULT_RULE;
-    const activeSources = mhState.sources.filter(s => s.connected);
-    const usedSources = activeSources.length
-      ? activeSources.sort(()=>0.5-Math.random()).slice(0, Math.min(3, activeSources.length))
-          .map(s => ({ source: s.id, relevance: +(0.7 + Math.random()*0.29).toFixed(2) }))
-      : [{ source:'ninguna_fuente_conectada', relevance:0 }];
-
-    const words = q.split(/\s+/).filter(w => w.length > 3);
-    const entities = words.slice(0,2).map(w => ({ type: 'tema', value: w.replace(/[¿?¡!.,]/g,'') }));
-    logEntities(entities.length ? entities : [{ type:'general', value:'consulta' }], usedSources);
-
+    const tono = (document.getElementById('cfg-tono') && document.getElementById('cfg-tono').value) || 'Profesional y directo';
     const isMetaDocQuery = META_DOC_KEYWORDS.some(k => normalizeText(q).includes(k));
-    const kbHit = searchKnowledge(q);
     const docsSummary = isMetaDocQuery ? buildDocumentsSummary() : null;
+    const retrieval = docsSummary ? [] : retrieveTopChunks(q, 3);
+    const grounded = !!docsSummary || retrieval.length > 0;
 
     let answerText;
     let engineUsed;
+
     if (docsSummary) {
       answerText = docsSummary;
-      engineUsed = { provider: 'simulado', model: 'resumen-de-documentos' };
-    } else if (kbHit) {
-      answerText = `Según "${kbHit.title}": ${kbHit.snippet}${kbHit.snippet.length >= 280 ? '…' : ''}`;
-      engineUsed = { provider: 'simulado', model: 'búsqueda-local-en-documentos' };
-    } else {
-      answerText = rule === DEFAULT_RULE ? getFallbackAnswer() : rule.text;
-      engineUsed = { provider: 'simulado', model: rule === DEFAULT_RULE ? 'sin-coincidencia' : 'reglas-locales' };
-    }
-
-    if (mhState.realMode && mhState.apiConfig.connected) {
+      engineUsed = { provider: 'local', model: 'resumen-de-documentos' };
+    } else if (!retrieval.length) {
+      answerText = getFallbackAnswer();
+      engineUsed = { provider: 'local', model: 'sin-contexto-relevante' };
+    } else if (mhState.realMode && mhState.apiConfig.connected) {
       try {
-        const systemPrompt = buildSystemPrompt();
+        const systemPrompt = buildRagSystemPrompt(retrieval, tono);
         const real = await callProviderAPI(mhState.apiConfig.provider, mhState.apiConfig.model, mhState.apiConfig.key, [{ role: 'user', content: q }], systemPrompt);
-        if (real) { answerText = real; engineUsed = { provider: mhState.apiConfig.provider, model: mhState.apiConfig.model }; }
+        answerText = real || 'El modelo no devolvió texto.';
+        engineUsed = { provider: mhState.apiConfig.provider, model: mhState.apiConfig.model };
       } catch (err) {
-        notify('⚠','Fallback a modo simulado', err.message.slice(0,80));
+        notify('⚠','Fallback a extracción local', err.message.slice(0,80));
+        answerText = retrieval.map(r => `Según "${r.title}": ${r.text}`).join('\n\n');
+        engineUsed = { provider: 'local', model: 'extracción-local (fallback por error de API)' };
       }
+    } else {
+      answerText = retrieval.map(r => `Según "${r.title}": ${r.text}`).join('\n\n');
+      engineUsed = { provider: 'local', model: 'extracción-local' };
     }
 
     const responseObj = {
       query: q,
-      intent: rule.intent,
-      confidence: +(0.81 + Math.random()*0.18).toFixed(2),
-      entities: entities.length ? entities : [{ type:'general', value:'consulta' }],
-      sources_used: usedSources,
-      knowledge_hit: docsSummary ? { type: 'resumen_documentos', documentos_indexados: state.files.filter(f => f.content).length } : (kbHit ? { type: 'coincidencia', document: kbHit.title, match_score: kbHit.score } : null),
+      grounded,
+      retrieval: retrieval.map(r => ({ document: r.title, chunk_id: r.chunk_id, score: +r.score.toFixed(2) })),
       engine: engineUsed,
       response: {
         text: answerText,
-        tone: rule.tone,
-        avatar: { emotion: rule.emotion, gesture: rule.gesture, gaze: 'contacto visual con el usuario' }
-      },
-      suggested_followups: [
-        '¿Quieres que te muestre un caso de uso similar?',
-        '¿Deseas hablar con un asesor humano?'
-      ]
+        tone: tono,
+        avatar: { emotion: grounded ? 'seguro' : 'cauteloso', gesture: grounded ? 'asentimiento' : 'gesto pensativo' }
+      }
     };
 
     const jsonStr = JSON.stringify(responseObj, null, 2);
     streamJSON(jsonStr);
     setTimeout(() => addChatBubble(answerText, 'system'), 550);
 
-    mhState.dataset.push({ system: buildSystemPrompt(), user: q, assistant: answerText, tags: entities.map(e => e.value) });
+    logEntities(q);
+    mhState.dataset.push({ system: buildRagSystemPrompt(retrieval.length ? retrieval : [{title:'—',text:'sin contexto'}], tono), user: q, assistant: answerText, tags: retrieval.map(r => r.title) });
     updateDatasetStats();
   } catch (err) {
     notify('⚠','Error inesperado', (err && err.message ? err.message : 'Intenta de nuevo').slice(0,90));
@@ -2240,10 +2245,28 @@ function streamJSON(fullText) {
    MAPA DE CONOCIMIENTO
    ══════════════════════════════════════════ */
 
-function computeEntityFreq() {
+function computeDocumentKeywordFreq() {
   const freq = {};
-  mhState.entities.forEach(e => { const v = e.value.toLowerCase(); freq[v] = (freq[v] || 0) + 1; });
-  return Object.entries(freq).sort((a,b) => b[1] - a[1]);
+  state.files.filter(f => f.content && f.status === 'ready').forEach(f => {
+    const words = normalizeText(f.content).split(/[^a-z0-9]+/).filter(w => w.length > 3 && !STOPWORDS.has(w));
+    words.forEach(w => {
+      if (!freq[w]) freq[w] = { count: 0, docs: new Set() };
+      freq[w].count++;
+      freq[w].docs.add(f.name);
+    });
+  });
+  return freq;
+}
+
+function computeEntityFreq() {
+  const merged = {};
+  Object.entries(computeDocumentKeywordFreq()).forEach(([w, d]) => { merged[w] = { count: d.count, docs: Array.from(d.docs) }; });
+  mhState.entities.forEach(e => {
+    const v = e.value.toLowerCase();
+    if (!merged[v]) merged[v] = { count: 0, docs: [] };
+    merged[v].count++;
+  });
+  return Object.entries(merged).sort((a,b) => b[1].count - a[1].count);
 }
 
 function hubNodeSVG(cx, cy) {
@@ -2270,7 +2293,7 @@ function renderKnowledgeMap() {
   if (!edgesG || !nodesG) return;
   const cx = 350, cy = 210;
   const tags = state.tags;
-  const sources = mhState.sources.filter(s => s.connected);
+  const sources = getRealSources();
   const freq = computeEntityFreq().slice(0, 10);
 
   let edgesHTML = '', nodesHTML = hubNodeSVG(cx, cy);
@@ -2289,27 +2312,26 @@ function renderKnowledgeMap() {
     const angle = (360 / Math.max(sources.length,1)) * i - 90 + 18;
     const rad = angle * Math.PI / 180;
     const x = cx + 200 * Math.cos(rad), y = cy + 200 * Math.sin(rad);
-    sourcePositions[s.id] = { x, y };
+    sourcePositions[s.name] = { x, y };
     edgesHTML += edgeLineSVG(cx, cy, x, y, 'source');
     nodesHTML += mapNodeSVG(x, y, s.icon, s.name, 'source');
   });
 
-  freq.forEach(([val,count], i) => {
+  freq.forEach(([val,info], i) => {
     let target = null;
     for (const t of tags) {
       const kw = (t.keywords || '').toLowerCase();
       if (val.includes(t.name.toLowerCase()) || t.name.toLowerCase().includes(val) || (kw && kw.includes(val))) { target = tagPositions[t.name.toLowerCase()]; break; }
     }
-    if (!target) {
-      const rel = mhState.entities.find(e => e.value.toLowerCase() === val && e.sources && e.sources.length);
-      if (rel) target = sourcePositions[rel.sources[0]];
+    if (!target && info.docs && info.docs.length) {
+      target = sourcePositions[info.docs[0]];
     }
     const base = target || { x: cx, y: cy };
     const angle = (360 / Math.max(freq.length,1)) * i;
     const rad = angle * Math.PI / 180;
     const x = base.x + 55 * Math.cos(rad), y = base.y + 55 * Math.sin(rad);
     edgesHTML += edgeLineSVG(base.x, base.y, x, y, 'entity');
-    nodesHTML += mapNodeSVG(x, y, '✦', val + (count > 1 ? ` ×${count}` : ''), 'entity', 15);
+    nodesHTML += mapNodeSVG(x, y, '✦', val + (info.count > 1 ? ` ×${info.count}` : ''), 'entity', 15);
   });
 
   edgesG.innerHTML = edgesHTML;
@@ -2328,32 +2350,35 @@ function detectPatterns() {
   renderKnowledgeMap();
   const freq = computeEntityFreq();
   const tags = state.tags;
-  const sources = mhState.sources.filter(s => s.connected);
+  const sources = getRealSources();
   const list = document.getElementById('pattern-list');
   const lines = [];
 
-  if (!freq.length) {
-    lines.push('Aún no hay suficientes conversaciones de prueba. Ve al Playground y haz un par de consultas para generar patrones reales.');
+  if (!sources.length) {
+    lines.push('Aún no hay documentos ni fuentes en vivo con contenido real indexado. Agrega texto en Documentos o conecta una fuente real en "Fuentes de Datos" para generar patrones reales.');
+  } else if (!freq.length) {
+    lines.push('No se detectaron palabras clave significativas todavía en el contenido indexado.');
   } else {
-    lines.push(`El tema más recurrente en las consultas es "<strong>${freq[0][0]}</strong>", mencionado ${freq[0][1]} veces.`);
-    if (freq.length > 1) lines.push(`También aparecen con frecuencia: ${freq.slice(1,4).map(f => f[0]).join(', ')}.`);
+    lines.push(`El término más recurrente en tus documentos es "<strong>${freq[0][0]}</strong>", con ${freq[0][1].count} aparición(es)${freq[0][1].docs && freq[0][1].docs.length ? ' en ' + freq[0][1].docs.join(', ') : ''}.`);
+    if (freq.length > 1) lines.push(`También aparecen con frecuencia: ${freq.slice(1,5).map(f => f[0]).join(', ')}.`);
   }
 
   tags.forEach(t => {
     const kw = (t.keywords || '').toLowerCase().split(',').map(k => k.trim()).filter(Boolean);
-    const matched = sources.filter(s => kw.some(k => k && (s.name.toLowerCase().includes(k) || s.type.toLowerCase().includes(k))));
-    if (matched.length) lines.push(`La etiqueta "<strong>${t.name}</strong>" se conecta con ${matched.length} fuente(s): ${matched.map(m => m.name).join(', ')}.`);
+    const matched = sources.filter(s => kw.some(k => k && s.name.toLowerCase().includes(k)));
+    if (matched.length) lines.push(`La etiqueta "<strong>${t.name}</strong>" se relaciona con: ${matched.map(m => m.name).join(', ')}.`);
   });
 
   if (sources.length >= 2) {
-    lines.push(`El núcleo está fusionando ${sources.length} fuentes simultáneamente, cubriendo tanto datos estructurados como conversacionales.`);
+    const totalChars = sources.reduce((a,s) => a + s.count, 0);
+    lines.push(`El núcleo tiene ${sources.length} fuente(s) real(es) fusionadas, con ${totalChars.toLocaleString('es-CR')} caracteres de texto indexado en total.`);
   }
   if (!tags.length) {
     lines.push('No hay etiquetas temáticas creadas todavía — agrégalas en el módulo de Etiquetas para mejorar la calidad de las conexiones detectadas.');
   }
 
   list.innerHTML = lines.map(l => `<div class="trend-item"><span class="trend-rank">◆</span><div class="trend-text">${l}</div></div>`).join('');
-  notify('🕸️','Patrones actualizados','El mapa de conocimiento se regeneró');
+  notify('🕸️','Patrones actualizados','El mapa de conocimiento se regeneró con datos reales');
 }
 
 /* ══════════════════════════════════════════
@@ -2374,10 +2399,11 @@ function generateSyntheticDataset() {
   const basis = document.getElementById('synth-basis').value;
   let topics = [];
   if (basis === 'tags' || basis === 'both') topics = topics.concat(state.tags.map(t => t.name));
-  if (basis === 'sources' || basis === 'both') topics = topics.concat(mhState.sources.filter(s => s.connected).map(s => s.name));
+  if (basis === 'sources' || basis === 'both') topics = topics.concat(getRealSources().map(s => s.name));
   if (!topics.length) topics = ['la marca', 'el producto', 'el servicio'];
 
-  const sys = buildSystemPrompt();
+  const tono = (document.getElementById('cfg-tono') && document.getElementById('cfg-tono').value) || 'Profesional y directo';
+  const sys = `Eres el MetaHuman entrenado con las fuentes reales indexadas en Neuro AI. Tono de comunicación: ${tono}.`;
   const out = [];
   for (let i = 0; i < n; i++) {
     const topic = topics[i % topics.length];
@@ -2412,7 +2438,7 @@ function buildExportContent(format) {
     return JSON.stringify({
       persona: { tono: (document.getElementById('cfg-tono') && document.getElementById('cfg-tono').value) || null },
       tags: state.tags,
-      sources: mhState.sources,
+      sources: getRealSources(),
       dataset: mhState.dataset,
       generated_at: new Date().toISOString()
     }, null, 2);
@@ -2421,13 +2447,13 @@ function buildExportContent(format) {
     const nodes = [{ id: 'nucleo', type: 'hub', label: 'Núcleo MetaHuman' }];
     const edges = [];
     state.tags.forEach(t => { nodes.push({ id: 'tag:'+t.name, type: 'tag', label: t.name }); edges.push({ source: 'nucleo', target: 'tag:'+t.name }); });
-    mhState.sources.filter(s => s.connected).forEach(s => { nodes.push({ id: 'source:'+s.id, type: 'source', label: s.name, records: s.records }); edges.push({ source: 'nucleo', target: 'source:'+s.id }); });
-    computeEntityFreq().slice(0,20).forEach(([val,count]) => { nodes.push({ id: 'entity:'+val, type: 'entity', label: val, weight: count }); edges.push({ source: 'nucleo', target: 'entity:'+val }); });
+    getRealSources().forEach(s => { nodes.push({ id: 'source:'+s.id, type: 'source', label: s.name, chars: s.count }); edges.push({ source: 'nucleo', target: 'source:'+s.id }); });
+    computeEntityFreq().slice(0,20).forEach(([val,info]) => { nodes.push({ id: 'entity:'+val, type: 'entity', label: val, weight: info.count, docs: info.docs }); edges.push({ source: 'nucleo', target: 'entity:'+val }); });
     return JSON.stringify({ nodes, edges }, null, 2);
   }
   if (format === 'csv') {
-    const rows = [['id','nombre','tipo','conectada','registros']];
-    mhState.sources.forEach(s => rows.push([s.id, s.name, s.type, s.connected ? 'si' : 'no', s.records]));
+    const rows = [['id','nombre','tipo','caracteres_indexados']];
+    getRealSources().forEach(s => rows.push([s.id, s.name, s.type, s.count]));
     return rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   }
   return '';
