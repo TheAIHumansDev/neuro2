@@ -2082,15 +2082,6 @@ function normalizeText(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-const META_DOC_KEYWORDS = ['documento','documentos','archivo','archivos','que sabes','que tienes','que informacion tienes','de que trata','contenido indexado','fuentes tienes','que tienes cargado','resumen del documento','resume el documento','que hay en el nucleo','base de conocimiento'];
-
-function buildDocumentsSummary() {
-  const chunks = state.files.filter(f => f.content && f.status === 'ready');
-  if (!chunks.length) return null;
-  const list = chunks.map(c => `• "${c.name}": ${c.content.slice(0,160).trim()}${c.content.length > 160 ? '…' : ''}`).join('\n');
-  return `Tengo ${chunks.length} documento(s) indexado(s) con contenido real:\n${list}`;
-}
-
 function refreshPlaygroundNotice() {
   const el = document.getElementById('playground-kb-notice');
   if (!el) return;
@@ -2111,7 +2102,7 @@ function getDocumentChunks() {
     const paras = f.content.split(/\n{2,}/).map(p => p.trim()).filter(p => p.length > 0);
     const pieces = paras.length > 1 ? paras : chunkText(f.content, 500);
     pieces.forEach((p, i) => {
-      if (p.length < 20) return;
+      if (p.length < 3) return;
       chunks.push({ title: f.name, text: p.slice(0, 900), chunk_id: f.id + '#' + i });
     });
   });
@@ -2159,40 +2150,50 @@ async function queryCore() {
     input.value = '';
 
     const tono = (document.getElementById('cfg-tono') && document.getElementById('cfg-tono').value) || 'Profesional y directo';
-    const isMetaDocQuery = META_DOC_KEYWORDS.some(k => normalizeText(q).includes(k));
-    const docsSummary = isMetaDocQuery ? buildDocumentsSummary() : null;
-    const retrieval = docsSummary ? [] : retrieveTopChunks(q, 3);
-    const grounded = !!docsSummary || retrieval.length > 0;
+    const allChunks = getDocumentChunks();
+    const hasContent = allChunks.length > 0;
 
+    let retrieval = hasContent ? retrieveTopChunks(q, 5) : [];
     let answerText;
     let engineUsed;
+    let grounded = hasContent;
 
-    if (docsSummary) {
-      answerText = docsSummary;
-      engineUsed = { provider: 'local', model: 'resumen-de-documentos' };
-    } else if (!retrieval.length) {
+    if (!hasContent) {
       answerText = getFallbackAnswer();
-      engineUsed = { provider: 'local', model: 'sin-contexto-relevante' };
+      engineUsed = { provider: 'local', model: 'sin-datos-indexados' };
+      grounded = false;
     } else if (mhState.realMode && mhState.apiConfig.connected) {
+      // Estilo agente: si la búsqueda por palabras clave no encontró nada específico,
+      // igual le pasamos al modelo real todo el contenido indexado (hasta 8 fragmentos)
+      // para que responda con criterio, en vez de devolver una plantilla fija.
+      const contextChunks = (retrieval.length ? retrieval : allChunks.map(c => ({ ...c, score: 0 }))).slice(0, 8);
       try {
-        const systemPrompt = buildRagSystemPrompt(retrieval, tono);
+        const systemPrompt = buildRagSystemPrompt(contextChunks, tono);
         const real = await callProviderAPI(mhState.apiConfig.provider, mhState.apiConfig.model, mhState.apiConfig.key, [{ role: 'user', content: q }], systemPrompt);
         answerText = real || 'El modelo no devolvió texto.';
         engineUsed = { provider: mhState.apiConfig.provider, model: mhState.apiConfig.model };
+        retrieval = contextChunks;
       } catch (err) {
         notify('⚠','Fallback a extracción local', err.message.slice(0,80));
-        answerText = retrieval.map(r => `Según "${r.title}": ${r.text}`).join('\n\n');
+        answerText = contextChunks.map(r => `Según "${r.title}": ${r.text}`).join('\n\n');
         engineUsed = { provider: 'local', model: 'extracción-local (fallback por error de API)' };
+        retrieval = contextChunks;
       }
-    } else {
+    } else if (retrieval.length) {
+      // Modo local (sin API): extracción por coincidencia real de palabras clave.
       answerText = retrieval.map(r => `Según "${r.title}": ${r.text}`).join('\n\n');
       engineUsed = { provider: 'local', model: 'extracción-local' };
+    } else {
+      // Último recurso en modo local: no hubo coincidencia por palabras clave.
+      answerText = 'No encontré una coincidencia directa por palabras clave para esa pregunta en modo local. Conecta una API real (Claude u OpenAI) arriba para que un modelo razone sobre todo tu contenido indexado, o reformula la pregunta con términos que aparezcan en tus documentos.';
+      engineUsed = { provider: 'local', model: 'sin-coincidencia' };
+      grounded = false;
     }
 
     const responseObj = {
       query: q,
       grounded,
-      retrieval: retrieval.map(r => ({ document: r.title, chunk_id: r.chunk_id, score: +r.score.toFixed(2) })),
+      retrieval: retrieval.map(r => ({ document: r.title, chunk_id: r.chunk_id, score: +(r.score || 0).toFixed(2) })),
       engine: engineUsed,
       response: {
         text: answerText,
